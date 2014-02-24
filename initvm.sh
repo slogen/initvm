@@ -10,6 +10,7 @@ krb5-config     krb5-config/default_realm       string  $REALM
 libpam-runtime  libpam-runtime/profiles multiselect     unix, winbind, systemd
 EOF
 
+mkdir -p /etc/samba
 sudo tee /etc/samba/smb.conf <<EOF
 [global]
 security=ads
@@ -46,11 +47,10 @@ fi
 
 . join_pass
 
-sudo apt-get install krb5-user winbind libpam-winbind libnss-winbind
+sudo apt-get -o Dpkg::Options::="--force-confold" install openssh-server krb5-user winbind libpam-winbind libnss-winbind
 sudo net ADS JOIN -U "JoinMachine@scadaminds.com%${JOINPASS}"
-if '!' grep 'winbind' /etc/nsswitch.conf; then
+sudo grep 'winbind' /etc/nsswitch.conf || \
   sudo sed -e 's/^\(\(passwd\|group\|shadow\):[ ]*\)compat$/\1compat winbind/'\
        -i /etc/nsswitch.conf
-fi
 sudo service winbind restart
 
