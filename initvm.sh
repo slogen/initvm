@@ -1,7 +1,10 @@
 #!/bin/bash
 
-set -x
+install_utils() {
+    sudo apt-get install openssh-server git emacs24-nox tmux aptitude
+}
 
+domain_join() {
 REALM=SCADAMINDS.COM
 WORKGROUP=${REALM%%.*}
 
@@ -35,7 +38,7 @@ idmap config * : range = 100000 - 110000
 idmap config * : read only = yes
 idmap cache time = 51840000 # 60 days
 template shell = /bin/bash
-template homedir = /home/%U
+template homedir = /home/$WORKGROUP/%U
 EOF
 
 if test '!' -e /etc/sudoers.d/ad; then
@@ -53,4 +56,19 @@ sudo grep 'winbind' /etc/nsswitch.conf || \
   sudo sed -e 's/^\(\(passwd\|group\|shadow\):[ ]*\)compat$/\1compat winbind/'\
        -i /etc/nsswitch.conf
 sudo service winbind restart
+}
 
+help() {
+cat 1>&2 <<EOF
+usage: $0 [install_utils] [domain_join]
+EOF
+}
+
+test $# -eq 0 && help && exit 1
+while test $# -ge 1; do
+    case "$1" in 
+	(domain_join) domain_join; shift;;
+	(install_utils) install_utils; shift;;
+	(*) help; exit 1;;
+    esac
+done
