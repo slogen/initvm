@@ -1,7 +1,35 @@
 #!/bin/bash
 
+config_rsyslog() {
+    local console_conf_file=/etc/rsyslog.d/99-console.conf
+    if test '!' -f "$console_conf_file"; then 
+	sudo tee >"$console_conf_file" <<EOF
+ *.=crit;*.=err;*.=notice;*.=warn /dev/tty1
+EOF
+        sudo service rsyslog force-reload
+    fi
+}
+
+config_snmpd() {
+    local snmpd_config_file=/etc/snmp/snmpd.conf
+    if test '!' -f "$snmpd_config_file"; then
+	mkdir -p $(dirname $snmpd_config_file)
+	sudo tee >"$snmpd_config_file" <<EOF
+rocommunity  public 10.20.15.100
+rocommunity  public 62.242.41.100
+disk / 10%
+syslocation VM
+syscontact  root@scadaminds.com
+trap sink:        62.242.41.100
+trap community:        public
+snmpEnableAuthenTraps:    enabled
+EOF
+   fi
+   sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y snmpd
+}
+
 install_utils() {
-    sudo apt-get install openssh-server git emacs24-nox tmux aptitude
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop
 }
 
 domain_join() {
@@ -50,7 +78,8 @@ fi
 
 . join_pass
 
-sudo apt-get -o Dpkg::Options::="--force-confold" install openssh-server krb5-user winbind libpam-winbind libnss-winbind
+sudo apt-get DEBIAN_FRONTEND=noninteractive -o Dpkg::Options::="--force-confold" install -y \
+    openssh-server krb5-user winbind libpam-winbind libnss-winbind
 sudo net ADS JOIN -U "JoinMachine@scadaminds.com%${JOINPASS}"
 sudo grep 'winbind' /etc/nsswitch.conf || \
   sudo sed -e 's/^\(\(passwd\|group\|shadow\):[ ]*\)compat$/\1compat winbind/'\
@@ -60,8 +89,15 @@ sudo service winbind restart
 
 help() {
 cat 1>&2 <<EOF
-usage: $0 [install_utils] [domain_join]
+usage: $0 [ALL|install_utils|domain_join|config_rsyslog|config_snmpd]
 EOF
+}
+
+ALL() {
+    domain_join
+    install_utils
+    config_rsyslog
+    config_snmpd
 }
 
 test $# -eq 0 && help && exit 1
@@ -69,6 +105,9 @@ while test $# -ge 1; do
     case "$1" in 
 	(domain_join) domain_join; shift;;
 	(install_utils) install_utils; shift;;
+	(config_rsyslog) config_rsyslog; shift;;
+	(config_snmpd) config_snmpd; shift;;
+	(ALL) ALL; shift;;
 	(*) help; exit 1;;
     esac
 done
