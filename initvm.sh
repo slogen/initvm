@@ -1,20 +1,22 @@
 #!/bin/bash
 
+REALM=SCADAMINDS.COM
+WORKGROUP=${REALM%%.*}
+
 config_rsyslog() {
     local console_conf_file=/etc/rsyslog.d/99-console.conf
-    if test '!' -f "$console_conf_file"; then 
-	sudo tee >"$console_conf_file" <<EOF
+    test -f "$console_conf_file" && return 1
+    sudo tee "$console_conf_file" <<EOF
  *.=crit;*.=err;*.=notice;*.=warn /dev/tty1
 EOF
-        sudo service rsyslog force-reload
-    fi
+    sudo service rsyslog force-reload
 }
 
 config_snmpd() {
     local snmpd_config_file=/etc/snmp/snmpd.conf
-    if test '!' -f "$snmpd_config_file"; then
-	mkdir -p $(dirname $snmpd_config_file)
-	sudo tee >"$snmpd_config_file" <<EOF
+    test -f "$snmpd_config_file" && return 1
+    mkdir -p $(dirname $snmpd_config_file)
+    sudo tee "$snmpd_config_file" <<EOF
 rocommunity  public 10.20.15.100
 rocommunity  public 62.242.41.100
 disk / 10%
@@ -28,14 +30,27 @@ EOF
    sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y snmpd
 }
 
+pam_homedir() {
+    local conf_file="/usr/share/pam-configs/mkhomedir"
+    test -f "$conf_file" && return 0
+    sudo tee "$conf_file" <<EOF
+Name: activate mkhomedir
+Default: yes
+Priority: 900
+Session-Type: Additional
+Session:
+        required                        pam_mkhomedir.so umask=0022 skel=/etc/skel
+EOF
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y libpam-mkhomedir
+    pam-auth-update --package
+}
+
 install_utils() {
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop console-log
 }
 
 domain_join() {
-REALM=SCADAMINDS.COM
-WORKGROUP=${REALM%%.*}
-
+test -f /etc/samba/smb.conf && return 1
 sudo debconf-set-selections -v <<EOF
 krb5-config     krb5-config/default_realm       string  $REALM
 libpam-runtime  libpam-runtime/profiles multiselect     unix, winbind, systemd
@@ -98,6 +113,7 @@ ALL() {
     install_utils
     config_rsyslog
     config_snmpd
+    pam_homedir
 }
 
 test $# -eq 0 && help && exit 1
@@ -107,6 +123,7 @@ while test $# -ge 1; do
 	(install_utils) install_utils; shift;;
 	(config_rsyslog) config_rsyslog; shift;;
 	(config_snmpd) config_snmpd; shift;;
+	(pam_homedir) pam_homedir; shift;;
 	(ALL) ALL; shift;;
 	(*) help; exit 1;;
     esac
