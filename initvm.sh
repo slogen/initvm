@@ -3,20 +3,11 @@
 REALM=SCADAMINDS.COM
 WORKGROUP=${REALM%%.*}
 
-config_rsyslog() {
-    local console_conf_file=/etc/rsyslog.d/99-console.conf
-    test -f "$console_conf_file" && return 1
-    sudo tee "$console_conf_file" <<EOF
- *.=crit;*.=err;*.=notice;*.=warn /dev/tty1
-EOF
-    sudo service rsyslog force-reload
-}
-
 config_snmpd() {
     local snmpd_config_file=/etc/snmp/snmpd.conf
     test -f "$snmpd_config_file" && return 1
     mkdir -p $(dirname $snmpd_config_file)
-    sudo tee "$snmpd_config_file" <<EOF
+    tee "$snmpd_config_file" <<EOF
 rocommunity  public 10.20.15.100
 rocommunity  public 62.242.41.100
 disk / 10%
@@ -26,14 +17,13 @@ trap sink:        62.242.41.100
 trap community:        public
 snmpEnableAuthenTraps:    enabled
 EOF
-   fi
-   sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y snmpd
+    DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y snmpd
 }
 
 pam_homedir() {
     local conf_file="/usr/share/pam-configs/mkhomedir"
     test -f "$conf_file" && return 0
-    sudo tee "$conf_file" <<EOF
+    tee "$conf_file" <<EOF
 Name: activate mkhomedir
 Default: yes
 Priority: 900
@@ -41,23 +31,23 @@ Session-Type: Additional
 Session:
         required                        pam_mkhomedir.so umask=0022 skel=/etc/skel
 EOF
-    sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y libpam-mkhomedir
+    DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y libpam-mkhomedir
     pam-auth-update --package
 }
 
 install_utils() {
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop console-log
+    DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop console-log
 }
 
 domain_join() {
 test -f /etc/samba/smb.conf && return 1
-sudo debconf-set-selections -v <<EOF
+debconf-set-selections -v <<EOF
 krb5-config     krb5-config/default_realm       string  $REALM
 libpam-runtime  libpam-runtime/profiles multiselect     unix, winbind, systemd
 EOF
 
 mkdir -p /etc/samba
-sudo tee /etc/samba/smb.conf <<EOF
+tee /etc/samba/smb.conf <<EOF
 [global]
 security=ads
 realm=$REALM
@@ -93,25 +83,24 @@ fi
 
 . join_pass
 
-sudo apt-get DEBIAN_FRONTEND=noninteractive -o Dpkg::Options::="--force-confold" install -y \
+apt-get DEBIAN_FRONTEND=noninteractive -o Dpkg::Options::="--force-confold" install -y \
     openssh-server krb5-user winbind libpam-winbind libnss-winbind
-sudo net ADS JOIN -U "JoinMachine@scadaminds.com%${JOINPASS}"
-sudo grep 'winbind' /etc/nsswitch.conf || \
-  sudo sed -e 's/^\(\(passwd\|group\|shadow\):[ ]*\)compat$/\1compat winbind/'\
+net ADS JOIN -U "JoinMachine@scadaminds.com%${JOINPASS}"
+grep 'winbind' /etc/nsswitch.conf || \
+  sed -e 's/^\(\(passwd\|group\|shadow\):[ ]*\)compat$/\1compat winbind/'\
        -i /etc/nsswitch.conf
-sudo service winbind restart
+service winbind restart
 }
 
 help() {
 cat 1>&2 <<EOF
-usage: $0 [ALL|install_utils|domain_join|config_rsyslog|config_snmpd]
+usage: $0 [ALL|install_utils|domain_join|config_snmpd]
 EOF
 }
 
 ALL() {
     domain_join
     install_utils
-    config_rsyslog
     config_snmpd
     pam_homedir
 }
