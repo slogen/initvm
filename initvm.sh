@@ -46,6 +46,15 @@ krb5-config     krb5-config/default_realm       string  $REALM
 libpam-runtime  libpam-runtime/profiles multiselect     unix, winbind, systemd
 EOF
 
+local pam_cfg=/etc/security/pam_winbind.conf
+if test '!' -e "$pam_cfg"; then
+    tee "$pam_conf" <<EOF
+[global]
+require_membership_of = remote_desktoppers
+EOF
+fi
+
+
 mkdir -p /etc/samba
 tee /etc/samba/smb.conf <<EOF
 [global]
@@ -79,10 +88,10 @@ template homedir = /home/$WORKGROUP/%U
 EOF
 
 if test '!' -e /etc/sudoers.d/ad; then
-    sudo tee /etc/sudoers.d/ad <<EOF
+    tee /etc/sudoers.d/ad <<EOF
 "%domain admins"             ALL=(ALL:ALL) NOPASSWD: ALL
 EOF
-    sudo chmod 0440 /etc/sudoers.d/ad
+    chmod 0440 /etc/sudoers.d/ad
 fi
 
 . join_pass
