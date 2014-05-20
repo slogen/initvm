@@ -3,6 +3,34 @@
 REALM=SCADAMINDS.COM
 WORKGROUP=${REALM%%.*}
 
+config_ntp() {
+    local conf="/etc/ntp.conf"
+    test -f "$conf" && return 1
+    tee "$conf" <<EOF
+tinker panic 0
+
+driftfile /var/lib/ntp/ntp.drift
+statsdir /var/log/ntpstats/
+
+statistics loopstats peerstats clockstats
+filegen loopstats file loopstats type day enable
+filegen peerstats file peerstats type day enable
+filegen clockstats file clockstats type day enable
+
+server ntp.scadaminds.com minpoll 4 maxpoll 8
+server 0.dk.pool.ntp.org 
+server 1.dk.pool.ntp.org
+
+restrict -4 default kod notrap nomodify nopeer noquery
+restrict -6 default kod notrap nomodify nopeer noquery
+
+restrict 127.0.0.1
+restrict ::1
+EOF
+    DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y ntp
+}
+
+
 config_snmpd() {
     local snmpd_config_file=/etc/snmp/snmpd.conf
     test -f "$snmpd_config_file" && return 1
@@ -115,6 +143,7 @@ ALL() {
     domain_join
     install_utils
     config_snmpd
+    config_ntp
     pam_homedir
 }
 
@@ -123,8 +152,8 @@ while test $# -ge 1; do
     case "$1" in 
 	(domain_join) domain_join; shift;;
 	(install_utils) install_utils; shift;;
-	(config_rsyslog) config_rsyslog; shift;;
 	(config_snmpd) config_snmpd; shift;;
+	(config_ntp) config_ntp; shift;;
 	(pam_homedir) pam_homedir; shift;;
 	(ALL) ALL; shift;;
 	(*) help; exit 1;;
