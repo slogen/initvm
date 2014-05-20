@@ -64,7 +64,7 @@ EOF
 }
 
 install_utils() {
-    DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop console-log
+    DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server git emacs24-nox tmux aptitude atsar atop console-log git-el
 }
 
 domain_join() {
@@ -76,7 +76,7 @@ EOF
 
 local pam_cfg=/etc/security/pam_winbind.conf
 if test '!' -e "$pam_cfg"; then
-    tee "$pam_conf" <<EOF
+    tee "$pam_cfg" <<EOF
 [global]
 require_membership_of = remote_desktoppers
 EOF
@@ -117,7 +117,7 @@ EOF
 
 if test '!' -e /etc/sudoers.d/ad; then
     tee /etc/sudoers.d/ad <<EOF
-"%domain admins"             ALL=(ALL:ALL) NOPASSWD: ALL
+"%domain_admins"             ALL=(ALL:ALL) NOPASSWD: ALL
 EOF
     chmod 0440 /etc/sudoers.d/ad
 fi
@@ -126,7 +126,7 @@ JOINPASS="$(dig joinpass.scadaminds.com txt +short)"
 JOINPASS="${JOINPASS%\"}"
 JOINPASS="${JOINPASS#\"}"
 
-apt-get DEBIAN_FRONTEND=noninteractive -o Dpkg::Options::="--force-confold" install -y \
+DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confold" install -y \
     openssh-server krb5-user winbind libpam-winbind libnss-winbind
 net ADS JOIN -U "JoinMachine@scadaminds.com%${JOINPASS}"
 grep 'winbind' /etc/nsswitch.conf || \
