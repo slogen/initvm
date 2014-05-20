@@ -122,7 +122,9 @@ EOF
     chmod 0440 /etc/sudoers.d/ad
 fi
 
-. join_pass
+JOINPASS="$(dig joinpass.scadaminds.com txt +short)"
+JOINPASS="${JOINPASS%\"}"
+JOINPASS="${JOINPASS#\"}"
 
 apt-get DEBIAN_FRONTEND=noninteractive -o Dpkg::Options::="--force-confold" install -y \
     openssh-server krb5-user winbind libpam-winbind libnss-winbind
